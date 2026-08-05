@@ -3,6 +3,7 @@
 [Live dashboard](https://inrisk-weather-explorer.vercel.app)
 
 
+
 A small full-stack application that retrieves historical daily weather data from Open-Meteo, stores the original response in Amazon S3, and visualizes saved datasets in a responsive dashboard.
 
 The repository is organized as a monorepo:
