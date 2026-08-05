@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+backend/.aws-sam/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Local configuration
+.env
+.env.local
+*.local
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
