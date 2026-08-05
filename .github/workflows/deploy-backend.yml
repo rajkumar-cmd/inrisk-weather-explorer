@@ -27,8 +27,8 @@ jobs:
       STACK_NAME: inrisk-weather-explorer
       CORS_ORIGINS: ${{ inputs.cors_origins }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
       - uses: aws-actions/setup-sam@v2
@@ -55,4 +55,3 @@ jobs:
           --stack-name "$STACK_NAME"
           --query "Stacks[0].Outputs"
           --output table
-
