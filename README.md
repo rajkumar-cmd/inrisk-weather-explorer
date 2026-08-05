@@ -4,6 +4,7 @@
 
 
 
+
 A full-stack weather archive built for the InRisk Labs engineering case study. A user requests up to 31 days of historical weather, the API saves the complete Open-Meteo response in a private S3 bucket, and the dashboard lists and visualizes those stored files.
 
 ## How it works
@@ -182,10 +183,12 @@ The stack targets `ap-south-1` and creates:
 ### Before deploying
 
 1. Check the AWS Billing and Free Tier pages for the account. Free Tier eligibility varies by account age and plan; the application is designed for tiny usage but cannot guarantee a zero bill.
-2. Create a dedicated deployment identity rather than using root credentials.
-3. Give that identity the CloudFormation, Lambda, API Gateway, IAM role, S3, and CloudWatch permissions required to create this stack.
-4. Add its values in GitHub repository settings as `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. Never put them in source files, workflow YAML, issues, or chat.
-5. Add a low AWS budget alert. A budget alert warns about spend; it is not a hard service shutdown.
+2. Add a low AWS budget alert. A budget alert warns about spend; it is not a hard service shutdown.
+3. Create a dedicated IAM deployment user. Do not create access keys for the AWS root user.
+4. Give the deployment user the permissions required for CloudFormation, Lambda, API Gateway, IAM roles, S3, and CloudWatch Logs.
+5. Create a GitHub environment named `production`, restrict its deployment branch to `main`, and add environment secrets named `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+
+Never put AWS credentials in `.env`, source files, workflow YAML, issues, or chat. GitHub encrypts Actions secrets and supplies them only while the deployment job runs. Delete or deactivate the deployment access key when the project no longer needs redeployment.
 
 ### Deploy the API
 
@@ -211,4 +214,3 @@ Vercel Hobby is intended for personal, non-commercial projects. Confirm its curr
 
 - Locally verified: August 5, 2026
 - Live URL: pending authenticated deployment
-
