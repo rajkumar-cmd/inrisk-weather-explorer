@@ -1,0 +1,58 @@
+name: Deploy backend
+
+on:
+  workflow_dispatch:
+    inputs:
+      cors_origins:
+        description: Comma-separated frontend origins, including https://
+        required: true
+        default: http://localhost:5173
+        type: string
+      confirm_free_tier:
+        description: I checked AWS billing and Free Tier eligibility
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: ${{ inputs.confirm_free_tier }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      AWS_REGION: ap-south-1
+      STACK_NAME: inrisk-weather-explorer
+      CORS_ORIGINS: ${{ inputs.cors_origins }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: aws-actions/setup-sam@v2
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Build Lambda package
+        run: sam build
+      - name: Deploy stack
+        run: >-
+          sam deploy
+          --stack-name "$STACK_NAME"
+          --region "$AWS_REGION"
+          --capabilities CAPABILITY_IAM
+          --resolve-s3
+          --no-confirm-changeset
+          --no-fail-on-empty-changeset
+          --parameter-overrides "CorsOrigins=$CORS_ORIGINS"
+      - name: Show deployment outputs
+        run: >-
+          aws cloudformation describe-stacks
+          --stack-name "$STACK_NAME"
+          --query "Stacks[0].Outputs"
+          --output table
+

@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: InRisk Weather Explorer API and private weather storage
+
+Parameters:
+  CorsOrigins:
+    Type: String
+    Default: http://localhost:5173
+    Description: Comma-separated browser origins allowed to call the API
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures:
+      - x86_64
+    MemorySize: 256
+    Timeout: 20
+    Tracing: PassThrough
+
+Resources:
+  WeatherBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  WeatherApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: $default
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 5
+        ThrottlingRateLimit: 2
+
+  WeatherFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: backend/
+      Handler: app.main.handler
+      ReservedConcurrentExecutions: 2
+      Environment:
+        Variables:
+          WEATHER_BUCKET_NAME: !Ref WeatherBucket
+          CORS_ORIGINS: !Ref CorsOrigins
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - s3:ListBucket
+              Resource: !GetAtt WeatherBucket.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub ${WeatherBucket.Arn}/*
+      Events:
+        RootRoute:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WeatherApi
+            Path: /
+            Method: ANY
+        ProxyRoute:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref WeatherApi
+            Path: /{proxy+}
+            Method: ANY
+
+  WeatherFunctionLogs:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${WeatherFunction}
+      RetentionInDays: 7
+
+Outputs:
+  ApiUrl:
+    Description: Public API Gateway endpoint
+    Value: !Sub https://${WeatherApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}
+  BucketName:
+    Description: Private bucket that stores raw weather responses
+    Value: !Ref WeatherBucket
+
