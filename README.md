@@ -1,70 +1,77 @@
 # InRisk Weather Explorer
 
-[Live dashboard](https://inrisk-weather-explorer.vercel.app)
+[Open the live dashboard](https://inrisk-weather-explorer.vercel.app)
 
+This project fetches historical weather data for a location and saves the response in a private S3 bucket. Saved files can be opened later and shown as a chart and table.
 
+## Main features
 
+- Request up to 31 days of historical weather data.
+- Store the complete Open-Meteo response in S3.
+- List and open saved weather files.
+- Show maximum and minimum temperatures in a chart.
+- Show actual and apparent temperatures in a table.
+- Change the table page size between 10, 20, and 50 rows.
+- Use the dashboard on desktop and mobile screens.
 
+## Tools used
 
-A full-stack weather archive built for the InRisk Labs engineering case study. A user requests up to 31 days of historical weather, the API saves the complete Open-Meteo response in a private S3 bucket, and the dashboard lists and visualizes those stored files.
+- React, TypeScript, Vite, and Tailwind CSS for the frontend.
+- FastAPI and Pydantic for the API and request validation.
+- Recharts for the temperature chart.
+- AWS Lambda and API Gateway for the backend.
+- A private AWS S3 bucket for saved weather files.
+- AWS SAM for infrastructure.
+- GitHub Actions for tests and manual backend deployment.
+- Vercel for frontend hosting.
 
-## How it works
-
-```mermaid
-flowchart LR
-    U["React dashboard"] -->|"POST range"| A["FastAPI on Lambda"]
-    A -->|"Async HTTP request"| O["Open-Meteo archive API"]
-    O -->|"Raw JSON bytes"| A
-    A -->|"PutObject"| S["Private S3 bucket"]
-    U -->|"List or open file"| A
-    A -->|"ListObjectsV2 / GetObject"| S
-    A -->|"Stored JSON"| U
-    U --> C["Line chart and table"]
-```
-
-The browser never calls Open-Meteo directly. It works from saved objects after the initial fetch, which avoids duplicate provider calls and keeps cloud access inside the API.
-
-## Repository layout
+## Project structure
 
 ```text
 backend/
   app/
-    main.py          FastAPI routes and exception handlers
-    models.py        Request validation and response models
-    weather.py       Async Open-Meteo client
-    storage.py       S3 adapter
-    filenames.py     Safe object-name generation and validation
-  tests/             Backend unit and route tests
+    main.py          API routes and error handling
+    models.py        Request and response models
+    weather.py       Open-Meteo requests
+    storage.py       S3 operations
+    filenames.py     S3 filename creation and validation
+  tests/             Backend tests
+
 frontend/
   src/
-    components/      Input, file browser, chart, and table sections
-    api.ts            Typed backend requests
-    weather.ts        Stored JSON to chart/table row conversion
-    App.tsx            Page state and workflow coordination
-  src/App.test.tsx    Browser interaction tests
-.github/workflows/    CI and manual backend deployment
-template.yaml         AWS SAM infrastructure
+    components/      Form, file list, chart, and table
+    App.tsx           Page state and user actions
+    api.ts            Backend requests
+    weather.ts        Converts stored data into table rows
+  src/App.test.tsx    Frontend tests
+
+.github/workflows/    Test and deployment workflows
+template.yaml         AWS SAM template
 ```
 
-The frontend and backend have independent dependencies and build commands. They share API contracts, not runtime code, so either side can be deployed or tested separately.
+## How a request works
 
-## Technology choices
+1. The user enters coordinates and a date range.
+2. The React app sends the request to FastAPI.
+3. FastAPI validates the input.
+4. The backend requests historical data from Open-Meteo.
+5. The full response is saved in the private S3 bucket.
+6. The dashboard lists the saved file.
+7. When the user opens the file, the dashboard uses the stored data for the chart and table.
 
-| Area | Choice | Reason |
-| --- | --- | --- |
-| API | FastAPI + Pydantic | Async route support and explicit request validation |
-| Storage | boto3 + S3 | Direct fit for object listing, upload, and retrieval |
-| Lambda adapter | Mangum | Translates API Gateway events to ASGI requests |
-| UI | React + TypeScript + Vite | Small client-only application with type-checked API data |
-| Styling | Tailwind CSS | Responsive layout without a component framework |
-| Chart | Recharts | Focused React line-chart primitives |
-| Infrastructure | AWS SAM | Versioned Lambda, API Gateway, S3, IAM, and log configuration |
+The browser does not call Open-Meteo directly. It only communicates with the FastAPI backend.
 
-No database is needed because S3 objects are the application records. Redux is not used because the state belongs to one page and has no complex cross-route lifecycle.
+S3 operations use `asyncio.to_thread()` because boto3 is synchronous. This keeps blocking S3 work away from the FastAPI event loop.
 
-## API
+## API endpoints
 
-### `POST /store-weather-data`
+### Store weather data
+
+```http
+POST /store-weather-data
+```
+
+Example body:
 
 ```json
 {
@@ -75,14 +82,7 @@ No database is needed because S3 objects are the application records. Redux is n
 }
 ```
 
-Coordinates must be in their geographic ranges. Dates must be valid, ordered, and span no more than 31 days inclusive. The API requests these daily variables:
-
-- `temperature_2m_max`
-- `temperature_2m_min`
-- `apparent_temperature_max`
-- `apparent_temperature_min`
-
-Success response:
+Example response:
 
 ```json
 {
@@ -91,15 +91,21 @@ Success response:
 }
 ```
 
-The exact Open-Meteo response bytes are stored rather than a reduced application model. That preserves provider metadata, units, timezone, and any fields that may be useful later.
+### List saved files
 
-### `GET /list-weather-files`
+```http
+GET /list-weather-files
+```
 
-Returns S3 object names, sizes, and creation times. The storage adapter uses the SDK paginator instead of repeatedly scanning or guessing object names.
+Each item contains the filename, file size, and creation time.
 
-### `GET /weather-file-content/{file}`
+### Open a saved file
 
-Returns one stored JSON object. Only filenames generated by this application are accepted. Invalid and missing names both return:
+```http
+GET /weather-file-content/{file}
+```
+
+Invalid or missing filenames return HTTP 404:
 
 ```json
 {
@@ -108,19 +114,11 @@ Returns one stored JSON object. Only filenames generated by this application are
 }
 ```
 
-Validation errors use HTTP 400, provider failures use 502, storage failures use 503, and missing files use 404.
-
-## Async behavior
-
-`OpenMeteoClient` awaits HTTPX directly because HTTPX provides asynchronous network I/O. boto3 is synchronous, so the storage adapter runs each S3 operation through `asyncio.to_thread`. This prevents a slow S3 request from blocking FastAPI's event loop while keeping the official AWS SDK.
-
-Async does not make one request intrinsically faster. It allows the Lambda process to use waiting time for other work and keeps route handlers consistently non-blocking.
-
-## Local setup
+## Run locally
 
 ### Backend
 
-Python 3.12 is used by Lambda and CI.
+Python 3.12 is recommended.
 
 ```powershell
 cd backend
@@ -128,19 +126,19 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements-dev.txt
 Copy-Item .env.example .env
-```
-
-Set `WEATHER_BUCKET_NAME` to a bucket your local AWS identity can access. Set `CORS_ORIGINS` to comma-separated browser origins. Do not commit `.env` or AWS credentials.
-
-```powershell
 uvicorn app.main:app --reload --env-file .env
 ```
 
-The API is available at `http://localhost:8000` and its generated OpenAPI page is at `/docs`.
+Backend environment variables:
+
+```text
+WEATHER_BUCKET_NAME=your-private-bucket-name
+CORS_ORIGINS=http://localhost:5173
+```
+
+The API runs at `http://localhost:8000`.
 
 ### Frontend
-
-Node 24 is used locally and in CI.
 
 ```powershell
 cd frontend
@@ -149,69 +147,64 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-`VITE_API_BASE_URL` must contain the backend origin without a trailing path.
+Frontend environment variable:
 
-## Tests and checks
+```text
+VITE_API_BASE_URL=http://localhost:8000
+```
 
-Backend tests replace Open-Meteo and S3 at their dependency boundaries. They do not need credentials or make cloud calls.
+The frontend runs at `http://localhost:5173`.
+
+## Run the tests
+
+Backend:
 
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest
 ```
 
-Frontend tests mock `fetch` and exercise behavior visible to the user.
+Frontend:
 
 ```powershell
 cd frontend
 npm run lint
-npm test
+npm run test
 npm run build
 ```
 
-CI runs all of these checks on pushes to `main` and on pull requests.
+The tests use mocks, so they do not call Open-Meteo or AWS.
 
-## AWS deployment
+## Deployment
 
-The stack targets `ap-south-1` and creates:
+### Backend
 
-- A private, encrypted S3 bucket with all public-access blocks enabled.
-- A 256 MB Python Lambda with a 20-second timeout and reserved concurrency of two.
-- An API Gateway HTTP API throttled to two requests per second with a burst of five.
-- A seven-day CloudWatch log group.
-- IAM permissions limited to listing the bucket and reading/writing its objects.
+The `template.yaml` file defines the Lambda function, API Gateway, private S3 bucket, permissions, and logs.
 
-### Before deploying
+The backend workflow is manual:
 
-1. Check the AWS Billing and Free Tier pages for the account. Free Tier eligibility varies by account age and plan; the application is designed for tiny usage but cannot guarantee a zero bill.
-2. Add a low AWS budget alert. A budget alert warns about spend; it is not a hard service shutdown.
-3. Create a dedicated IAM deployment user. Do not create access keys for the AWS root user.
-4. Give the deployment user the permissions required for CloudFormation, Lambda, API Gateway, IAM roles, S3, and CloudWatch Logs.
-5. Create a GitHub environment named `production`, restrict its deployment branch to `main`, and add environment secrets named `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+1. Open **Actions → Deploy backend** in GitHub.
+2. Select **Run workflow**.
+3. Enter the allowed frontend origins.
+4. Confirm the AWS account check.
+5. Run the workflow.
 
-Never put AWS credentials in `.env`, source files, workflow YAML, issues, or chat. GitHub encrypts Actions secrets and supplies them only while the deployment job runs. Delete or deactivate the deployment access key when the project no longer needs redeployment.
+The workflow reads AWS credentials from secrets in the GitHub `production` environment. Credentials are not stored in the repository.
 
-### Deploy the API
+### Frontend
 
-1. Open **Actions → Deploy backend → Run workflow**.
-2. Confirm Free Tier eligibility.
-3. Initially use `http://localhost:5173` for `cors_origins`.
-4. Copy `ApiUrl` from the workflow's CloudFormation outputs.
+The frontend is deployed from the `frontend` directory on Vercel.
 
-The workflow builds on Ubuntu so Lambda receives Linux-compatible Python packages. It runs only when manually requested; normal pushes run tests but never change AWS.
+```text
+Framework: Vite
+Build command: npm run build
+Output directory: dist
+```
 
-### Deploy the dashboard on Vercel
+Set `VITE_API_BASE_URL` to the deployed API Gateway URL before deploying.
 
-1. Import this GitHub repository into a Vercel Hobby project.
-2. Set the project root directory to `frontend`.
-3. Set `VITE_API_BASE_URL` to the deployed `ApiUrl`.
-4. Deploy and copy the resulting HTTPS origin.
-5. Run the backend workflow again with both allowed origins, for example:
-   `http://localhost:5173,https://inrisk-weather-explorer.vercel.app`
+## Live API
 
-Vercel Hobby is intended for personal, non-commercial projects. Confirm its current terms before deployment.
-
-## Verification status
-
-- Locally verified: August 5, 2026
-- Live URL: pending authenticated deployment
+```text
+https://67ejic2zye.execute-api.ap-south-1.amazonaws.com
+```
