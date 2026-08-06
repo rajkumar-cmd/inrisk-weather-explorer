@@ -1,6 +1,6 @@
 # InRisk Weather Explorer
 
-[Open the live dashboard](https://inrisk-weather-explorer.vercel.app)
+## [Open the live inrisk weather explorer](https://inrisk-weather-explorer.vercel.app)
 
 This project fetches historical weather data for a location and saves the response in a private S3 bucket. Saved files can be opened later and shown as a chart and table.
 
