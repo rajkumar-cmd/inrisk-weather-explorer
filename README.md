@@ -202,9 +202,3 @@ Output directory: dist
 ```
 
 Set `VITE_API_BASE_URL` to the deployed API Gateway URL before deploying.
-
-## Live API
-
-```text
-https://67ejic2zye.execute-api.ap-south-1.amazonaws.com
-```
