@@ -49,7 +49,6 @@ Resources:
     Properties:
       CodeUri: backend/
       Handler: app.main.handler
-      ReservedConcurrentExecutions: 2
       Environment:
         Variables:
           WEATHER_BUCKET_NAME: !Ref WeatherBucket

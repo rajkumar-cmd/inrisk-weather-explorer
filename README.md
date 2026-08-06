@@ -5,6 +5,7 @@
 
 
 
+
 A full-stack weather archive built for the InRisk Labs engineering case study. A user requests up to 31 days of historical weather, the API saves the complete Open-Meteo response in a private S3 bucket, and the dashboard lists and visualizes those stored files.
 
 ## How it works
